@@ -103,7 +103,7 @@ class FieldDetailScreen extends StatelessWidget {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: '未找到地图应用，无法导航'));
+          const SnackBar(content: Text('未找到地图应用，无法导航')));
     }
   }
 

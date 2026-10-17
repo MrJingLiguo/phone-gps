@@ -343,7 +343,18 @@ class MapScreenState extends State<MapScreen> {
                   : LocationService.toLatLng(_me!),
               initialZoom: _me == null ? 4.5 : 17,
               onTap: (_, ll) {
-                if (_boundaryMode) setState(() => _bPts.add(ll));
+                if (_boundaryMode) {
+                  setState(() => _bPts.add(ll));
+                  return;
+                }
+                // flutter_map v7 多边形无 onTap：用点内检测选中地块
+                for (final p in app.parcels) {
+                  if (p.boundary.length >= 3 &&
+                      GeoUtils.pointInPolygon(ll, p.boundary)) {
+                    _showParcelSheet(p);
+                    break;
+                  }
+                }
               },
               onLongPress: (_, ll) {
                 if (_boundaryMode) setState(() => _bPts.add(ll));
@@ -365,7 +376,6 @@ class MapScreenState extends State<MapScreen> {
                         color: parcelColor(p).withValues(alpha: 0.25),
                         borderColor: parcelColor(p),
                         borderStrokeWidth: 2.5,
-                        onTap: () => _showParcelSheet(p),
                       ),
                 ],
               ),

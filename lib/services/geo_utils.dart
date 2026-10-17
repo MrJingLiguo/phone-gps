@@ -71,6 +71,25 @@ class GeoUtils {
     return (math.atan2(y, x) * 180 / math.pi + 360) % 360;
   }
 
+  /// 射线法：点是否在多边形内（用于点击选中地块）
+  static bool pointInPolygon(LatLng pt, List<LatLng> poly) {
+    if (poly.length < 3) return false;
+    bool inside = false;
+    for (int i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      final a = poly[i];
+      final b = poly[j];
+      if ((a.latitude > pt.latitude) != (b.latitude > pt.latitude) &&
+          pt.longitude <
+              (b.longitude - a.longitude) *
+                      (pt.latitude - a.latitude) /
+                      (b.latitude - a.latitude) +
+                  a.longitude) {
+        inside = !inside;
+      }
+    }
+    return inside;
+  }
+
   /// 方位角转中文八方描述
   static String bearingName(double deg) {
     const names = ['北', '东北', '东', '东南', '南', '西南', '西', '西北'];
