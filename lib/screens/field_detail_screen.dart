@@ -3,7 +3,6 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../app_state.dart';
 import '../models/parcel.dart';
 import '../services/geo_utils.dart';
@@ -93,20 +92,7 @@ class FieldDetailScreen extends StatelessWidget {
 
   Future<void> _navigate(BuildContext context) async {
     if (parcel.boundary.isEmpty) return;
-    // 导航给高德等地图 app 用 GCJ-02 坐标
-    final c = Gcj.of(parcel.centroid);
-    final uri = Uri.parse(
-        'geo:${c.latitude.toStringAsFixed(6)},${c.longitude.toStringAsFixed(6)}'
-        '?q=${c.latitude.toStringAsFixed(6)},${c.longitude.toStringAsFixed(6)}'
-        '(${Uri.encodeComponent(parcel.name)})');
-    final ok = await canLaunchUrl(uri);
-    if (!context.mounted) return;
-    if (ok) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('未找到地图应用，无法导航')));
-    }
+    await openNavigation(context, parcel.name, parcel.centroid);
   }
 
   @override
