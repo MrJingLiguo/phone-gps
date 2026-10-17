@@ -8,6 +8,7 @@ import '../models/parcel.dart';
 import '../services/geo_utils.dart';
 import '../services/gcj02.dart';
 import '../services/nav.dart';
+import '../services/share_service.dart';
 import '../services/storage.dart';
 import 'photo_viewer_screen.dart';
 
@@ -110,6 +111,10 @@ class FieldDetailScreen extends StatelessWidget {
         title: Text(parcel.name),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         actions: [
+          IconButton(
+              icon: const Icon(Icons.share),
+              tooltip: '分享地块',
+              onPressed: () => ShareService.shareParcel(parcel)),
           IconButton(icon: const Icon(Icons.edit), onPressed: () => _edit(context)),
           IconButton(
               icon: const Icon(Icons.delete_outline),

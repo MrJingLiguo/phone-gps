@@ -8,26 +8,17 @@
 - 🌾 **地块管理**：名称/作物/备注，自动算面积（亩）和周长，按离我距离排序查找
 - 📷 **地块拍照**：每个地块可拍照/选照片，详情页网格浏览
 - 🧭 **找地块**：显示距离与方位（如"东北 320m"），一键外部地图导航
+- 📤 **分享**：地块/地点/轨迹一键分享到微信、QQ、短信；接收方点链接即可用高德地图打开位置；轨迹附带 GPX 文件（奥维/两步路可导入）；地图页可截图分享当前画面
 - 💾 **本地存储**：数据存 JSON + 照片存应用目录，无需任何账号/服务器
-
-## 构建 APK
-
-本仓库只包含 Dart 代码，`android/` 平台文件由 CI 中的 `flutter create` 自动生成。
-
-推送到 GitHub 后，Actions 会自动构建：
-
-1. GitHub 仓库 → **Actions** → **Build APK** → 等待变绿
-2. 该次运行页面底部 **Artifacts** 下载 `地块管家-apk.zip`
-3. 解压得到 `地块管家.apk`，传到手机安装（需允许"未知来源"安装）
-
-也可手动触发：Actions 页 → Run workflow。
 
 ## 技术栈
 
-Flutter + flutter_map(高德瓦片) + geolocator + image_picker，数据用 path_provider 存本地 JSON。
+Flutter + flutter_map(高德瓦片) + geolocator + image_picker + share_plus，数据用 path_provider 存本地 JSON。
 
 坐标系说明：数据统一存 WGS-84（GPS 原始坐标）；高德瓦片是 GCJ-02，
 显示/点选/导航时经 `lib/services/gcj02.dart` 转换对齐，面积距离计算不受影响。
+
+分享链接为高德网页版标记（uri.amap.com），微信内可直接查看；在浏览器或手机上打开可跳转高德地图 App。
 
 ## 权限说明
 

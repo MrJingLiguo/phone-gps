@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../app_state.dart';
 import '../focus_bus.dart';
 import '../services/geo_utils.dart';
+import '../services/share_service.dart';
 
 /// 轨迹历史列表
 class TracksScreen extends StatelessWidget {
@@ -72,6 +73,11 @@ class TracksScreen extends StatelessWidget {
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        IconButton(
+                          icon: const Icon(Icons.share, size: 20),
+                          tooltip: '分享轨迹(GPX+链接)',
+                          onPressed: () => ShareService.shareTrack(t),
+                        ),
                         IconButton(
                           icon: const Icon(Icons.map_outlined),
                           tooltip: '在地图上查看',

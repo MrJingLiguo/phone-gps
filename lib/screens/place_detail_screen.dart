@@ -9,6 +9,7 @@ import '../models/place.dart';
 import '../services/geo_utils.dart';
 import '../services/gcj02.dart';
 import '../services/nav.dart';
+import '../services/share_service.dart';
 import '../services/storage.dart';
 import 'photo_viewer_screen.dart';
 
@@ -106,6 +107,10 @@ class PlaceDetailScreen extends StatelessWidget {
         title: Text(place.name),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         actions: [
+          IconButton(
+              icon: const Icon(Icons.share),
+              tooltip: '分享地点',
+              onPressed: () => ShareService.sharePlace(place)),
           IconButton(
               icon: const Icon(Icons.edit), onPressed: () => _edit(context)),
           IconButton(

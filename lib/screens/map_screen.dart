@@ -12,6 +12,7 @@ import '../services/geo_utils.dart';
 import '../services/gcj02.dart';
 import '../services/location_service.dart';
 import '../services/nav.dart';
+import '../services/share_service.dart';
 import 'field_detail_screen.dart';
 import 'place_detail_screen.dart';
 
@@ -24,6 +25,7 @@ class MapScreen extends StatefulWidget {
 
 class MapScreenState extends State<MapScreen> {
   final MapController _map = MapController();
+  final GlobalKey _mapKey = GlobalKey(); // 地图截图分享用
   StreamSubscription<Position>? _sub;
 
   Position? _me;
@@ -536,10 +538,28 @@ class MapScreenState extends State<MapScreen> {
       appBar: AppBar(
         title: Text(_boundaryMode ? '采集地块边界' : '地块管家'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.share),
+            tooltip: '分享当前地图',
+            onPressed: () async {
+              String text = '【地块管家】我的地图';
+              if (_me != null) {
+                final me = LocationService.toLatLng(_me!);
+                text = '【地块管家】📍 我现在的位置\n'
+                    '👉 用高德地图打开：'
+                    '${ShareService.amapLink(me, '我的位置')}';
+              }
+              await ShareService.shareMapImage(_mapKey, text);
+            },
+          ),
+        ],
       ),
       body: Stack(
         children: [
-          FlutterMap(
+          RepaintBoundary(
+            key: _mapKey,
+            child: FlutterMap(
             mapController: _map,
             options: MapOptions(
               initialCenter: _me == null
@@ -723,6 +743,7 @@ class MapScreenState extends State<MapScreen> {
                 ],
               ),
             ],
+            ),
           ),
           // 定位错误提示
           if (_locError != null)
