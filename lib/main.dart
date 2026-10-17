@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'app_state.dart';
 import 'focus_bus.dart';
+import 'services/updater.dart';
 import 'screens/map_screen.dart';
 import 'screens/fields_screen.dart';
 import 'screens/places_screen.dart';
@@ -53,6 +54,10 @@ class _HomeShellState extends State<HomeShell> {
       if (mounted && FocusBus.req.value != null) {
         setState(() => _tab = 0);
       }
+    });
+    // 启动后自动检查更新（有新版本才弹窗）
+    Future.delayed(const Duration(seconds: 4), () {
+      if (mounted) Updater.checkAndPrompt(context, silent: true);
     });
   }
 

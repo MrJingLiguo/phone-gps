@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import '../app_state.dart';
 import '../services/backup.dart';
+import '../services/updater.dart';
 
 /// 更多：数据统计、备份导出、恢复导入
 class MoreScreen extends StatelessWidget {
@@ -110,6 +112,29 @@ class MoreScreen extends StatelessWidget {
           const SizedBox(height: 8),
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 4),
+            child: Text('应用更新',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          ),
+          const SizedBox(height: 8),
+          Card(
+            child: ListTile(
+              leading:
+                  const Icon(Icons.system_update, color: Colors.blue),
+              title: const Text('检查更新'),
+              subtitle: FutureBuilder<PackageInfo>(
+                future: PackageInfo.fromPlatform(),
+                builder: (_, snap) => Text(
+                    snap.hasData
+                        ? '当前版本 v${snap.data!.version}，从 GitHub 检查新版本'
+                        : '从 GitHub 检查新版本'),
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Updater.checkAndPrompt(context),
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 4),
             child: Text('备份与恢复',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           ),
@@ -147,7 +172,7 @@ class MoreScreen extends StatelessWidget {
           const SizedBox(height: 16),
           const Center(
             child: Text(
-              '地块管家 v1.1 · 数据仅存本机\n建议定期导出备份到微信/网盘',
+              '地块管家 · 数据仅存本机\n建议定期导出备份到微信/网盘',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.grey, fontSize: 12),
             ),

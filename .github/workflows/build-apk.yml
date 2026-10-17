@@ -8,6 +8,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -27,6 +29,21 @@ jobs:
       # 仓库只保留 Dart 代码，android/ 平台文件由 flutter create 生成
       - name: Generate android platform files
         run: flutter create . --platforms android --project-name fieldmap --org com.jing
+
+      # 固定签名：有 KEYSTORE_B64 secret 就用（保证覆盖安装/应用内更新可用），没有则退回 debug 签名
+      - name: Setup signing
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+          KS_PASS: ${{ secrets.KS_PASS }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > android/app/keystore.p12
+            echo "KS_PASS=$KS_PASS" >> "$GITHUB_ENV"
+            echo "KS_ALIAS=fieldmap" >> "$GITHUB_ENV"
+            echo "signed with release keystore"
+          else
+            echo "no KEYSTORE_B64 secret, fallback to debug signing"
+          fi
 
       - name: Configure Android (label / minSdk / permissions)
         run: |
@@ -54,6 +71,13 @@ jobs:
                   '    </queries>\n'
               )
               s = s.replace("    <application", queries + "\n    <application", 1)
+          # 应用内更新安装 APK 需要此权限声明
+          if "REQUEST_INSTALL_PACKAGES" not in s:
+              s = s.replace(
+                  "    <application",
+                  '    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>\n    <application',
+                  1,
+              )
           s = s.replace('android:label="fieldmap"', 'android:label="地块管家"')
           p.write_text(s, encoding="utf-8")
           print("manifest ok")
@@ -67,6 +91,20 @@ jobs:
               import re
               t = re.sub(r"minSdk\s*=\s*(flutter\.minSdkVersion|\d+)", "minSdk = 23", t)
               t = re.sub(r"minSdkVersion\s+(flutter\.minSdkVersion|\d+)", "minSdkVersion 23", t)
+              # 固定签名（keystore.p12 由上一步解码到 android/app/）
+              if pathlib.Path("android/app/keystore.p12").exists():
+                  sig = (
+                      'signingConfig = signingConfigs.create("ci") {\n'
+                      '                storeType = "PKCS12"\n'
+                      '                storeFile = file("keystore.p12")\n'
+                      '                storePassword = System.getenv("KS_PASS")\n'
+                      '                keyAlias = System.getenv("KS_ALIAS")\n'
+                      '                keyPassword = System.getenv("KS_PASS")\n'
+                      '            }'
+                  )
+                  t = t.replace(
+                      'signingConfig = signingConfigs.getByName("debug")', sig)
+                  print("release signing patched")
               pp.write_text(t, encoding="utf-8")
               print(f, "ok")
           EOF
@@ -76,10 +114,25 @@ jobs:
       - name: Build release APK
         run: flutter build apk --release
 
+      - name: Extract version
+        id: ver
+        run: echo "v=$(grep -m1 '^version:' pubspec.yaml | sed 's/version: *//' | cut -d+ -f1)" >> "$GITHUB_OUTPUT"
+
       - name: Rename APK
-        run: cp build/app/outputs/flutter-apk/app-release.apk 地块管家.apk
+        run: |
+          cp build/app/outputs/flutter-apk/app-release.apk 地块管家.apk
+          cp build/app/outputs/flutter-apk/app-release.apk "fieldmap-v${{ steps.ver.outputs.v }}.apk"
 
       - uses: actions/upload-artifact@v4
         with:
           name: 地块管家-apk
           path: 地块管家.apk
+
+      - name: Publish to GitHub Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.ver.outputs.v }}
+          name: 地块管家 v${{ steps.ver.outputs.v }}
+          body: "自动构建发布。同签名 APK 可直接覆盖安装。"
+          files: fieldmap-v${{ steps.ver.outputs.v }}.apk
+          overwrite: true
