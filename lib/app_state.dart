@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import 'models/parcel.dart';
+import 'models/place.dart';
 import 'models/track.dart';
 import 'services/geo_utils.dart';
 import 'services/storage.dart';
@@ -9,18 +10,20 @@ import 'services/storage.dart';
 class AppState extends ChangeNotifier {
   List<Parcel> parcels = [];
   List<Track> tracks = [];
+  List<Place> places = [];
   bool loaded = false;
 
   Future<void> init() async {
     await Storage.init();
-    final (p, t) = await Storage.loadAll();
+    final (p, t, pl) = await Storage.loadAll();
     parcels = p;
     tracks = t;
+    places = pl;
     loaded = true;
     notifyListeners();
   }
 
-  Future<void> _persist() => Storage.saveAll(parcels, tracks);
+  Future<void> _persist() => Storage.saveAll(parcels, tracks, places);
 
   // ---------- 地块 ----------
 
@@ -61,6 +64,58 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ---------- 地点 ----------
+
+  Future<Place> addPlace({
+    required String name,
+    required LatLng position,
+    String category = '',
+    String notes = '',
+  }) async {
+    final place = Place(
+      id: Storage.newId(),
+      name: name,
+      category: category,
+      notes: notes,
+      position: position,
+    );
+    places.add(place);
+    await _persist();
+    notifyListeners();
+    return place;
+  }
+
+  Future<void> updatePlace(Place place) async {
+    await _persist();
+    notifyListeners();
+  }
+
+  Future<void> deletePlace(Place place) async {
+    places.removeWhere((p) => p.id == place.id);
+    for (final t in tracks) {
+      if (t.placeId == place.id) t.placeId = null;
+    }
+    for (final name in List.of(place.photos)) {
+      Storage.deletePhoto(name);
+    }
+    await _persist();
+    notifyListeners();
+  }
+
+  Future<void> addPlacePhoto(Place place, String srcPath) async {
+    final name = await Storage.importPhoto(srcPath);
+    place.photos.add(name);
+    await _persist();
+    notifyListeners();
+  }
+
+  Future<void> removePlacePhoto(Place place, String name) async {
+    place.photos.remove(name);
+    Storage.deletePhoto(name);
+    await _persist();
+    notifyListeners();
+  }
+
   Future<void> addPhoto(Parcel parcel, String srcPath) async {
     final name = await Storage.importPhoto(srcPath);
     parcel.photos.add(name);
@@ -82,6 +137,7 @@ class AppState extends ChangeNotifier {
     required DateTime start,
     required DateTime end,
     String? parcelId,
+    String? placeId,
   }) async {
     final hh = start.hour.toString().padLeft(2, '0');
     final mm = start.minute.toString().padLeft(2, '0');
@@ -89,6 +145,7 @@ class AppState extends ChangeNotifier {
       id: Storage.newId(),
       name: '轨迹 ${start.month}月${start.day}日 $hh:$mm',
       parcelId: parcelId,
+      placeId: placeId,
       points: List.of(points),
       startTime: start,
       endTime: end,
@@ -115,6 +172,22 @@ class AppState extends ChangeNotifier {
     for (final p in parcels) {
       if (p.boundary.isEmpty) continue;
       final d = GeoUtils.distance(mid, p.centroid);
+      if (d < bestD) {
+        bestD = d;
+        bestId = p.id;
+      }
+    }
+    return bestD <= 200 ? bestId : null;
+  }
+
+  /// 轨迹自动关联地点：中点距地点 <200m
+  String? nearestPlaceId(List<LatLng> points) {
+    if (points.isEmpty || places.isEmpty) return null;
+    final mid = points[points.length ~/ 2];
+    String? bestId;
+    double bestD = double.infinity;
+    for (final p in places) {
+      final d = GeoUtils.distance(mid, p.position);
       if (d < bestD) {
         bestD = d;
         bestId = p.id;

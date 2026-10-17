@@ -97,6 +97,10 @@ class GeoUtils {
     return names[idx % 8];
   }
 
+  /// 坐标文本（保留原始 WGS-84，方便抄给别人）
+  static String coordText(LatLng p) =>
+      '${p.latitude.toStringAsFixed(6)}, ${p.longitude.toStringAsFixed(6)}';
+
   /// 距离格式化：m / km
   static String fmtDist(double m) {
     if (m < 1000) return '${m.round()}m';

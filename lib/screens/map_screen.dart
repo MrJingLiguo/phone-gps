@@ -7,10 +7,13 @@ import 'package:provider/provider.dart';
 import '../app_state.dart';
 import '../focus_bus.dart';
 import '../models/parcel.dart';
+import '../models/place.dart';
 import '../services/geo_utils.dart';
 import '../services/gcj02.dart';
 import '../services/location_service.dart';
+import '../services/nav.dart';
 import 'field_detail_screen.dart';
+import 'place_detail_screen.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -109,6 +112,17 @@ class MapScreenState extends State<MapScreen> {
           .firstOrNull;
       if (p != null && p.boundary.isNotEmpty) {
         _fitPoints(p.boundary);
+      }
+      return;
+    }
+    if (r.placeId != null) {
+      final pl = context
+          .read<AppState>()
+          .places
+          .where((x) => x.id == r.placeId)
+          .firstOrNull;
+      if (pl != null) {
+        _map.move(Gcj.of(pl.position), 17);
       }
       return;
     }
@@ -212,7 +226,11 @@ class MapScreenState extends State<MapScreen> {
     if (ok == true && mounted) {
       final app = context.read<AppState>();
       await app.addTrack(
-          points: pts, start: start, end: end, parcelId: app.nearestParcelId(pts));
+          points: pts,
+          start: start,
+          end: end,
+          parcelId: app.nearestParcelId(pts),
+          placeId: app.nearestPlaceId(pts));
       if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(const SnackBar(content: Text('轨迹已保存')));
@@ -241,6 +259,146 @@ class MapScreenState extends State<MapScreen> {
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('至少需要 3 个边界点')));
     }
+  }
+
+  // ---------- 地点 ----------
+
+  Future<void> _addPlaceAt(LatLng wgs) async {
+    final nameCtl = TextEditingController();
+    final catCtl = TextEditingController();
+    final noteCtl = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('保存地点'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+                controller: nameCtl,
+                autofocus: true,
+                decoration: const InputDecoration(labelText: '名称 *')),
+            TextField(
+                controller: catCtl,
+                decoration: const InputDecoration(
+                    labelText: '类别（厂家/亲戚家/朋友家/收藏点…）')),
+            TextField(
+                controller: noteCtl,
+                decoration: const InputDecoration(labelText: '备注')),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('取消')),
+          FilledButton(
+            onPressed: () =>
+                nameCtl.text.trim().isEmpty ? null : Navigator.pop(ctx, true),
+            child: const Text('保存'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true && mounted) {
+      await context.read<AppState>().addPlace(
+            name: nameCtl.text.trim(),
+            position: wgs,
+            category: catCtl.text.trim(),
+            notes: noteCtl.text.trim(),
+          );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('地点「${nameCtl.text.trim()}」已保存')));
+      }
+    }
+  }
+
+  void _showAddPlaceMenu(LatLng wgs) {
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: ListTile(
+          leading: const Icon(Icons.add_location_alt,
+              color: Colors.deepPurple),
+          title: const Text('在此处添加地点'),
+          onTap: () {
+            Navigator.pop(ctx);
+            _addPlaceAt(wgs);
+          },
+        ),
+      ),
+    );
+  }
+
+  void _showPlaceSheet(Place p) {
+    final app = context.read<AppState>();
+    final me = _me == null ? null : LocationService.toLatLng(_me!);
+    String distStr = '';
+    if (me != null) {
+      final d = GeoUtils.distance(me, p.position);
+      final b = GeoUtils.bearing(me, p.position);
+      distStr = ' · ${GeoUtils.bearingName(b)} ${GeoUtils.fmtDist(d)}';
+    }
+    final routes =
+        app.tracks.where((t) => t.placeId == p.id).toList();
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('${p.name}$distStr',
+                  style: Theme.of(ctx).textTheme.titleMedium),
+              const SizedBox(height: 4),
+              Text(
+                '${p.category.isEmpty ? "未分类" : p.category} · '
+                '${p.photos.length}张照片 · ${routes.length}条路线',
+                style: Theme.of(ctx).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  FilledButton.icon(
+                    icon: const Icon(Icons.navigation),
+                    label: const Text('导航去'),
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      openNavigation(context, p.name, p.position);
+                    },
+                  ),
+                  const SizedBox(width: 8),
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.info_outline),
+                    label: const Text('详情'),
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => PlaceDetailScreen(place: p)),
+                      );
+                    },
+                  ),
+                  const SizedBox(width: 8),
+                  if (routes.isNotEmpty)
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.route),
+                      label: const Text('看路线'),
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        FocusBus.focusTrack(routes.first.id);
+                      },
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _finishBoundaryDialog() async {
@@ -330,6 +488,15 @@ class MapScreenState extends State<MapScreen> {
               Row(
                 children: [
                   FilledButton.icon(
+                    icon: const Icon(Icons.navigation),
+                    label: const Text('导航去'),
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      openNavigation(context, p.name, p.centroid);
+                    },
+                  ),
+                  const SizedBox(width: 8),
+                  OutlinedButton.icon(
                     icon: const Icon(Icons.info_outline),
                     label: const Text('详情'),
                     onPressed: () {
@@ -398,7 +565,9 @@ class MapScreenState extends State<MapScreen> {
               onLongPress: (_, ll) {
                 if (_boundaryMode) {
                   setState(() => _bPts.add(Gcj.toWgs(ll)));
+                  return;
                 }
+                _showAddPlaceMenu(Gcj.toWgs(ll));
               },
             ),
             children: [
@@ -463,6 +632,43 @@ class MapScreenState extends State<MapScreen> {
                           ),
                         ),
                       ),
+                  // 地点标记（紫罗兰色，区别于地块）
+                  for (final pl in app.places)
+                    Marker(
+                      point: Gcj.of(pl.position),
+                      width: 120,
+                      height: 44,
+                      child: GestureDetector(
+                        onTap: () => _showPlaceSheet(pl),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.place,
+                                color: Colors.deepPurple, size: 22),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 1),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.9),
+                                borderRadius: BorderRadius.circular(6),
+                                border:
+                                    Border.all(color: Colors.deepPurple),
+                              ),
+                              child: Text(
+                                pl.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.deepPurple,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   // 地块名称标签
                   for (final p in app.parcels)
                     if (p.boundary.isNotEmpty)
@@ -564,6 +770,19 @@ class MapScreenState extends State<MapScreen> {
                   tooltip: '显示全部地块',
                   icon: Icons.crop_free,
                   onTap: () => _applyFocus(const MapFocusRequest(fitAll: true)),
+                ),
+                const SizedBox(height: 10),
+                _MapFab(
+                  tooltip: '存地点(当前位置)',
+                  icon: Icons.add_location_alt,
+                  onTap: () {
+                    if (_me != null) {
+                      _addPlaceAt(LocationService.toLatLng(_me!));
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('还没有定位，等 GPS 就绪或长按地图选点')));
+                    }
+                  },
                 ),
                 const SizedBox(height: 10),
                 FloatingActionButton(

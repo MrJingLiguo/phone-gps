@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import '../models/parcel.dart';
+import '../models/place.dart';
 import '../models/track.dart';
 
 /// 本地持久化：单个 JSON 文件 + photos/ 目录
@@ -23,9 +24,10 @@ class Storage {
       '${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}'
       '${(_seq++).toRadixString(36)}';
 
-  static Future<(List<Parcel>, List<Track>)> loadAll() async {
+  static Future<(List<Parcel>, List<Track>, List<Place>)> loadAll() async {
     final parcels = <Parcel>[];
     final tracks = <Track>[];
+    final places = <Place>[];
     if (_dataFile.existsSync()) {
       try {
         final j = jsonDecode(_dataFile.readAsStringSync());
@@ -33,17 +35,21 @@ class Storage {
             .map((e) => Parcel.fromJson(e as Map<String, dynamic>)));
         tracks.addAll((j['tracks'] as List? ?? [])
             .map((e) => Track.fromJson(e as Map<String, dynamic>)));
+        places.addAll((j['places'] as List? ?? [])
+            .map((e) => Place.fromJson(e as Map<String, dynamic>)));
       } catch (_) {
         // 数据损坏时不崩溃，从空开始
       }
     }
-    return (parcels, tracks);
+    return (parcels, tracks, places);
   }
 
-  static Future<void> saveAll(List<Parcel> parcels, List<Track> tracks) async {
+  static Future<void> saveAll(
+      List<Parcel> parcels, List<Track> tracks, List<Place> places) async {
     final j = jsonEncode({
       'parcels': parcels.map((p) => p.toJson()).toList(),
       'tracks': tracks.map((t) => t.toJson()).toList(),
+      'places': places.map((p) => p.toJson()).toList(),
     });
     await _dataFile.writeAsString(j, flush: true);
   }

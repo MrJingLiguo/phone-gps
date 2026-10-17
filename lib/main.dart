@@ -4,6 +4,7 @@ import 'app_state.dart';
 import 'focus_bus.dart';
 import 'screens/map_screen.dart';
 import 'screens/fields_screen.dart';
+import 'screens/places_screen.dart';
 import 'screens/tracks_screen.dart';
 
 void main() {
@@ -59,6 +60,7 @@ class _HomeShellState extends State<HomeShell> {
     final pages = [
       const MapScreen(),
       const FieldsScreen(),
+      const PlacesScreen(),
       const TracksScreen(),
     ];
     return Scaffold(
@@ -69,6 +71,7 @@ class _HomeShellState extends State<HomeShell> {
         destinations: const [
           NavigationDestination(icon: Icon(Icons.map_outlined), selectedIcon: Icon(Icons.map), label: '地图'),
           NavigationDestination(icon: Icon(Icons.grass_outlined), selectedIcon: Icon(Icons.grass), label: '地块'),
+          NavigationDestination(icon: Icon(Icons.place_outlined), selectedIcon: Icon(Icons.place), label: '地点'),
           NavigationDestination(icon: Icon(Icons.route_outlined), selectedIcon: Icon(Icons.route), label: '轨迹'),
         ],
       ),

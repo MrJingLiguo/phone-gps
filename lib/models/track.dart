@@ -5,6 +5,7 @@ class Track {
   final String id;
   String name;
   String? parcelId; // 可关联到地块
+  String? placeId; // 可关联到地点（第一次去的路线）
   List<LatLng> points;
   DateTime startTime;
   DateTime endTime;
@@ -14,6 +15,7 @@ class Track {
     required this.id,
     required this.name,
     this.parcelId,
+    this.placeId,
     required this.points,
     required this.startTime,
     required this.endTime,
@@ -26,6 +28,7 @@ class Track {
         'id': id,
         'name': name,
         'parcelId': parcelId,
+        'placeId': placeId,
         'points': points
             .map((p) => {'lat': p.latitude, 'lng': p.longitude})
             .toList(),
@@ -38,6 +41,7 @@ class Track {
         id: j['id'] as String,
         name: (j['name'] ?? '') as String,
         parcelId: j['parcelId'] as String?,
+        placeId: j['placeId'] as String?,
         points: (j['points'] as List? ?? [])
             .map((e) =>
                 LatLng((e['lat'] as num).toDouble(), (e['lng'] as num).toDouble()))

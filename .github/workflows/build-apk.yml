@@ -43,6 +43,17 @@ jobs:
           )
           if "ACCESS_FINE_LOCATION" not in s:
               s = s.replace("    <application", perms + "\n\n    <application", 1)
+          # Android 11+ 包可见性：声明可查询的地图 scheme，否则 canLaunch/launch 误报
+          if "<queries>" not in s:
+              queries = (
+                  '    <queries>\n'
+                  '        <intent><action android:name="android.intent.action.VIEW"/><data android:scheme="amapuri"/></intent>\n'
+                  '        <intent><action android:name="android.intent.action.VIEW"/><data android:scheme="androidamap"/></intent>\n'
+                  '        <intent><action android:name="android.intent.action.VIEW"/><data android:scheme="geo"/></intent>\n'
+                  '        <intent><action android:name="android.intent.action.VIEW"/><data android:scheme="https"/></intent>\n'
+                  '    </queries>\n'
+              )
+              s = s.replace("    <application", queries + "\n    <application", 1)
           s = s.replace('android:label="fieldmap"', 'android:label="地块管家"')
           p.write_text(s, encoding="utf-8")
           print("manifest ok")

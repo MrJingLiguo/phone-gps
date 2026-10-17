@@ -44,18 +44,30 @@ class TracksScreen extends StatelessWidget {
                 final parcel = app.parcels
                     .where((p) => p.id == t.parcelId)
                     .firstOrNull;
+                final place = app.places
+                    .where((p) => p.id == t.placeId)
+                    .firstOrNull;
                 return Card(
                   margin:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                   child: ListTile(
-                    leading: const Icon(Icons.route,
-                        color: Colors.deepOrange),
+                    leading: Icon(
+                      place != null
+                          ? Icons.place
+                          : (parcel != null
+                              ? Icons.grass
+                              : Icons.route),
+                      color: place != null
+                          ? Colors.deepPurple
+                          : Colors.deepOrange,
+                    ),
                     title: Text(t.name),
                     subtitle: Text(
                       '${GeoUtils.fmtDist(t.distanceM)} · '
                       '${GeoUtils.fmtDuration(t.duration)} · '
                       '${t.points.length}点'
-                      '${parcel != null ? ' · ${parcel.name}' : ''}',
+                      '${parcel != null ? ' · 地块:${parcel.name}' : ''}'
+                      '${place != null ? ' · 地点:${place.name}' : ''}',
                     ),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,

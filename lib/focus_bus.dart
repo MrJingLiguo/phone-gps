@@ -5,11 +5,12 @@ import 'package:latlong2/latlong.dart';
 class MapFocusRequest {
   final LatLng? center;
   final String? parcelId;
+  final String? placeId;
   final String? trackId;
   final bool fitAll;
 
   const MapFocusRequest(
-      {this.center, this.parcelId, this.trackId, this.fitAll = false});
+      {this.center, this.parcelId, this.placeId, this.trackId, this.fitAll = false});
 }
 
 class FocusBus {
@@ -17,6 +18,9 @@ class FocusBus {
 
   static void focusParcel(String id) =>
       req.value = MapFocusRequest(parcelId: id);
+
+  static void focusPlace(String id) =>
+      req.value = MapFocusRequest(placeId: id);
 
   static void focusTrack(String id) =>
       req.value = MapFocusRequest(trackId: id);
