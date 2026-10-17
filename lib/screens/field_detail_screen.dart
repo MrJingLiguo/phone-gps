@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../app_state.dart';
 import '../models/parcel.dart';
 import '../services/geo_utils.dart';
+import '../services/gcj02.dart';
 import '../services/storage.dart';
 import 'photo_viewer_screen.dart';
 
@@ -92,7 +93,8 @@ class FieldDetailScreen extends StatelessWidget {
 
   Future<void> _navigate(BuildContext context) async {
     if (parcel.boundary.isEmpty) return;
-    final c = parcel.centroid;
+    // 导航给高德等地图 app 用 GCJ-02 坐标
+    final c = Gcj.of(parcel.centroid);
     final uri = Uri.parse(
         'geo:${c.latitude.toStringAsFixed(6)},${c.longitude.toStringAsFixed(6)}'
         '?q=${c.latitude.toStringAsFixed(6)},${c.longitude.toStringAsFixed(6)}'
@@ -153,19 +155,20 @@ class FieldDetailScreen extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
                 child: FlutterMap(
                   options: MapOptions(
-                    initialCenter: parcel.centroid,
+                    initialCenter: Gcj.of(parcel.centroid),
                     initialZoom: 16,
                   ),
                   children: [
                     TileLayer(
                       urlTemplate:
-                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                          'https://webrd01.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=7&x={x}&y={y}&z={z}',
+                      maxNativeZoom: 18,
                       userAgentPackageName: 'com.jing.fieldmap',
                     ),
                     PolygonLayer(
                       polygons: [
                         Polygon(
-                          points: parcel.boundary,
+                          points: Gcj.path(parcel.boundary),
                           color: parcelColor(parcel).withValues(alpha: 0.3),
                           borderColor: parcelColor(parcel),
                           borderStrokeWidth: 3,

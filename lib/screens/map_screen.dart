@@ -8,6 +8,7 @@ import '../app_state.dart';
 import '../focus_bus.dart';
 import '../models/parcel.dart';
 import '../services/geo_utils.dart';
+import '../services/gcj02.dart';
 import '../services/location_service.dart';
 import 'field_detail_screen.dart';
 
@@ -34,6 +35,42 @@ class MapScreenState extends State<MapScreen> {
   // 地块边界采集
   bool _boundaryMode = false;
   final List<LatLng> _bPts = [];
+
+  // 底图：默认卫星图（对齐地块形状直观），可切街道图
+  bool _satellite = true;
+
+  /// 底图瓦片（高德，国内直连）。注意高德是 GCJ-02，所有画上去的点都要经 Gcj.of 转换。
+  List<Widget> _baseLayers() {
+    const sub = ['1', '2', '3', '4'];
+    if (_satellite) {
+      return [
+        TileLayer(
+          urlTemplate:
+              'https://webst0{s}.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}',
+          subdomains: sub,
+          maxNativeZoom: 18,
+          userAgentPackageName: 'com.jing.fieldmap',
+        ),
+        // 路网+注记透明图层
+        TileLayer(
+          urlTemplate:
+              'https://webst0{s}.is.autonavi.com/appmaptile?style=8&x={x}&y={y}&z={z}',
+          subdomains: sub,
+          maxNativeZoom: 18,
+          userAgentPackageName: 'com.jing.fieldmap',
+        ),
+      ];
+    }
+    return [
+      TileLayer(
+        urlTemplate:
+            'https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=7&x={x}&y={y}&z={z}',
+        subdomains: sub,
+        maxNativeZoom: 18,
+        userAgentPackageName: 'com.jing.fieldmap',
+      ),
+    ];
+  }
 
   @override
   void initState() {
@@ -83,13 +120,13 @@ class MapScreenState extends State<MapScreen> {
       return;
     }
     if (r.center != null) {
-      _map.move(r.center!, 17);
+      _map.move(Gcj.of(r.center!), 17);
     }
   }
 
   void _fitPoints(List<LatLng> pts) {
     if (pts.isEmpty) return;
-    final b = LatLngBounds.fromPoints(pts);
+    final b = LatLngBounds.fromPoints(Gcj.path(pts));
     _map.fitCamera(
       CameraFit.bounds(bounds: b, padding: const EdgeInsets.all(60)),
     );
@@ -107,7 +144,7 @@ class MapScreenState extends State<MapScreen> {
         setState(() => _me = pos);
         if (!_firstFixDone) {
           _firstFixDone = true;
-          _map.move(LatLng(pos.latitude, pos.longitude), 17);
+          _map.move(Gcj.of(LatLng(pos.latitude, pos.longitude)), 17);
         }
         final ll = LocationService.toLatLng(pos);
         if (_recTrack) setState(() => _livePts.add(ll));
@@ -340,39 +377,39 @@ class MapScreenState extends State<MapScreen> {
             options: MapOptions(
               initialCenter: _me == null
                   ? const LatLng(35.0, 110.0)
-                  : LocationService.toLatLng(_me!),
+                  : Gcj.of(LocationService.toLatLng(_me!)),
               initialZoom: _me == null ? 4.5 : 17,
               onTap: (_, ll) {
+                // 地图事件是 GCJ-02 坐标，入库转回 WGS-84
+                final wgs = Gcj.toWgs(ll);
                 if (_boundaryMode) {
-                  setState(() => _bPts.add(ll));
+                  setState(() => _bPts.add(wgs));
                   return;
                 }
                 // flutter_map v7 多边形无 onTap：用点内检测选中地块
                 for (final p in app.parcels) {
                   if (p.boundary.length >= 3 &&
-                      GeoUtils.pointInPolygon(ll, p.boundary)) {
+                      GeoUtils.pointInPolygon(wgs, p.boundary)) {
                     _showParcelSheet(p);
                     break;
                   }
                 }
               },
               onLongPress: (_, ll) {
-                if (_boundaryMode) setState(() => _bPts.add(ll));
+                if (_boundaryMode) {
+                  setState(() => _bPts.add(Gcj.toWgs(ll)));
+                }
               },
             ),
             children: [
-              TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.jing.fieldmap',
-                maxNativeZoom: 19,
-              ),
+              ..._baseLayers(),
               // 地块多边形
               PolygonLayer(
                 polygons: [
                   for (final p in app.parcels)
                     if (p.boundary.length >= 3)
                       Polygon(
-                        points: p.boundary,
+                        points: Gcj.path(p.boundary),
                         color: parcelColor(p).withValues(alpha: 0.25),
                         borderColor: parcelColor(p),
                         borderStrokeWidth: 2.5,
@@ -385,13 +422,13 @@ class MapScreenState extends State<MapScreen> {
                   for (final t in app.tracks)
                     if (t.points.length >= 2)
                       Polyline(
-                        points: t.points,
+                        points: Gcj.path(t.points),
                         strokeWidth: 4,
                         color: Colors.deepOrange.withValues(alpha: 0.8),
                       ),
                   if (_livePts.length >= 2)
                     Polyline(
-                        points: _livePts,
+                        points: Gcj.path(_livePts),
                         strokeWidth: 5,
                         color: Colors.redAccent),
                 ],
@@ -402,7 +439,7 @@ class MapScreenState extends State<MapScreen> {
                   polygons: [
                     if (_bPts.length >= 3)
                       Polygon(
-                        points: _bPts,
+                        points: Gcj.path(_bPts),
                         color: Colors.amber.withValues(alpha: 0.3),
                         borderColor: Colors.orange,
                         borderStrokeWidth: 3,
@@ -415,7 +452,7 @@ class MapScreenState extends State<MapScreen> {
                   if (_boundaryMode)
                     for (final pt in _bPts)
                       Marker(
-                        point: pt,
+                        point: Gcj.of(pt),
                         width: 14,
                         height: 14,
                         child: Container(
@@ -430,7 +467,7 @@ class MapScreenState extends State<MapScreen> {
                   for (final p in app.parcels)
                     if (p.boundary.isNotEmpty)
                       Marker(
-                        point: p.centroid,
+                        point: Gcj.of(p.centroid),
                         width: 120,
                         height: 28,
                         child: GestureDetector(
@@ -460,7 +497,7 @@ class MapScreenState extends State<MapScreen> {
                       ),
                   if (_me != null)
                     Marker(
-                      point: LocationService.toLatLng(_me!),
+                      point: Gcj.of(LocationService.toLatLng(_me!)),
                       width: 22,
                       height: 22,
                       child: Container(
@@ -505,11 +542,18 @@ class MapScreenState extends State<MapScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 _MapFab(
+                  tooltip: '切换底图(卫星/街道)',
+                  icon: _satellite ? Icons.satellite_alt : Icons.map_outlined,
+                  onTap: () => setState(() => _satellite = !_satellite),
+                ),
+                const SizedBox(height: 10),
+                _MapFab(
                   tooltip: '我的位置',
                   icon: Icons.my_location,
                   onTap: () {
                     if (_me != null) {
-                      _map.move(LocationService.toLatLng(_me!), 17);
+                      _map.move(
+                          Gcj.of(LocationService.toLatLng(_me!)), 17);
                     } else {
                       _startLocation();
                     }
