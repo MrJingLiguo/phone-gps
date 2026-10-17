@@ -1,0 +1,1 @@
+# 不引入 lint 包，保证 CI 中 pub get / build 不依赖额外 dev 包

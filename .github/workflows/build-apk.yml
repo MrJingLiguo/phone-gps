@@ -1,0 +1,74 @@
+name: Build APK
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Flutter version
+        run: flutter --version
+
+      # 仓库只保留 Dart 代码，android/ 平台文件由 flutter create 生成
+      - name: Generate android platform files
+        run: flutter create . --platforms android --project-name fieldmap --org com.jing
+
+      - name: Configure Android (label / minSdk / permissions)
+        run: |
+          python3 - <<'EOF'
+          import pathlib
+
+          # 1) AndroidManifest.xml: 注入权限 + 中文应用名
+          p = pathlib.Path("android/app/src/main/AndroidManifest.xml")
+          s = p.read_text(encoding="utf-8")
+          perms = (
+              '    <uses-permission android:name="android.permission.INTERNET"/>\n'
+              '    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>\n'
+              '    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>'
+          )
+          if "ACCESS_FINE_LOCATION" not in s:
+              s = s.replace("    <application", perms + "\n\n    <application", 1)
+          s = s.replace('android:label="fieldmap"', 'android:label="地块管家"')
+          p.write_text(s, encoding="utf-8")
+          print("manifest ok")
+
+          # 2) minSdk 提升到 23（geolocator 要求），兼容 groovy/kts 两种模板
+          for f in ("android/app/build.gradle", "android/app/build.gradle.kts"):
+              pp = pathlib.Path(f)
+              if not pp.exists():
+                  continue
+              t = pp.read_text(encoding="utf-8")
+              import re
+              t = re.sub(r"minSdk\s*=\s*(flutter\.minSdkVersion|\d+)", "minSdk = 23", t)
+              t = re.sub(r"minSdkVersion\s+(flutter\.minSdkVersion|\d+)", "minSdkVersion 23", t)
+              pp.write_text(t, encoding="utf-8")
+              print(f, "ok")
+          EOF
+
+      - run: flutter pub get
+
+      - name: Build release APK
+        run: flutter build apk --release
+
+      - name: Rename APK
+        run: cp build/app/outputs/flutter-apk/app-release.apk 地块管家.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: 地块管家-apk
+          path: 地块管家.apk
