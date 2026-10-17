@@ -25,6 +25,9 @@ class AppState extends ChangeNotifier {
 
   Future<void> _persist() => Storage.saveAll(parcels, tracks, places);
 
+  /// 备份导入后手动持久化
+  Future<void> persist() => _persist();
+
   // ---------- 地块 ----------
 
   Future<Parcel> addParcel({

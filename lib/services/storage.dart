@@ -64,6 +64,22 @@ class Storage {
 
   static File photoFile(String name) => File('${_photoDir.path}/$name');
 
+  static bool photoExists(String name) => photoFile(name).existsSync();
+
+  /// 备份恢复：直接写入照片字节
+  static void writePhotoBytes(String name, List<int> bytes) {
+    photoFile(name).writeAsBytesSync(bytes);
+  }
+
+  /// 覆盖式恢复前清空现有照片
+  static void deleteAllPhotos() {
+    if (_photoDir.existsSync()) {
+      for (final f in _photoDir.listSync()) {
+        if (f is File) f.deleteSync();
+      }
+    }
+  }
+
   static void deletePhoto(String name) {
     final f = photoFile(name);
     if (f.existsSync()) f.deleteSync();
