@@ -93,7 +93,7 @@ class Updater {
   /// 唤起系统安装器
   static Future<void> install(String path) async {
     await OpenFilex.open(path,
-        fileType: 'application/vnd.android.package-archive');
+        type: 'application/vnd.android.package-archive');
   }
 
   /// 检查并弹出更新对话框（自动+手动共用），有更新返回 true
