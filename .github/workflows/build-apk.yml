@@ -116,7 +116,9 @@ jobs:
 
       - name: Extract version
         id: ver
-        run: echo "v=$(grep -m1 '^version:' pubspec.yaml | sed 's/version: *//' | cut -d+ -f1)" >> "$GITHUB_OUTPUT"
+        run: |
+          v=$(grep -m1 '^version:' pubspec.yaml | sed 's/version: *//' | cut -d+ -f1)
+          echo "v=$v" >> "$GITHUB_OUTPUT"
 
       - name: Rename APK
         run: |
