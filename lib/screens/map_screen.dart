@@ -41,10 +41,13 @@ class MapScreenState extends State<MapScreen> {
   bool _boundaryMode = false;
   final List<LatLng> _bPts = [];
   final List<LatLng> _fixBuffer = []; // 最近的好点，边界点取均值消抖
+  bool _measuring = false; // 转角定点中
+  final List<Position> _staticFixes = []; // 定点期间的好点
 
   // 静态阈值见 LocationService；边界点最少移动间距（米）
   static const double _boundaryMinMove = 2.0;
   static const double _trackMinMove = 1.0;
+  static const int _staticDurationS = 10; // 转角定点时长
 
   // 底图：默认卫星图（对齐地块形状直观），可切街道图
   bool _satellite = true;
@@ -176,9 +179,13 @@ class MapScreenState extends State<MapScreen> {
                 GeoUtils.distance(_livePts.last, ll) >= _trackMinMove)) {
           _livePts.add(ll);
         }
-        // 边界：只收好点，取最近3点均值
+        // 边界：定点测量中只收静态好点；否则自动采点（好点+3点均值+>2m）
         if (_boundaryMode) {
-          if (acc <= LocationService.maxBoundaryAccuracy) {
+          if (_measuring) {
+            if (acc <= LocationService.maxBoundaryAccuracy) {
+              _staticFixes.add(pos);
+            }
+          } else if (acc <= LocationService.maxBoundaryAccuracy) {
             _fixBuffer.add(ll);
             if (_fixBuffer.length > 3) _fixBuffer.removeAt(0);
             final mean = _meanOf(_fixBuffer);
@@ -211,6 +218,37 @@ class MapScreenState extends State<MapScreen> {
       lng += p.longitude;
     }
     return LatLng(lat / pts.length, lng / pts.length);
+  }
+
+  /// 转角定点：站定 10 秒，好点按精度加权均值落一个精确角点（绕过 2m 间距）
+  Future<void> _startStaticFix() async {
+    if (_measuring || !_boundaryMode) return;
+    setState(() {
+      _measuring = true;
+      _staticFixes.clear();
+      _fixBuffer.clear();
+    });
+    await Future.delayed(Duration(seconds: _staticDurationS));
+    if (!mounted) return;
+    _measuring = false;
+    if (_staticFixes.length < 5) {
+      setState(() {});
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('好点太少（精度不足），未落点，请到空旷处再试')));
+      return;
+    }
+    double wSum = 0, lat = 0, lng = 0;
+    for (final p in _staticFixes) {
+      final a = p.accuracy <= 0.5 ? 0.5 : p.accuracy;
+      final w = 1.0 / (a * a);
+      wSum += w;
+      lat += w * p.latitude;
+      lng += w * p.longitude;
+    }
+    final pt = LatLng(lat / wSum, lng / wSum);
+    setState(() => _bPts.add(pt));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('已落角点（${_staticFixes.length}个好点加权均值）')));
   }
 
   // ---------- 动作 ----------
@@ -606,7 +644,10 @@ class MapScreenState extends State<MapScreen> {
                 // 地图事件是 GCJ-02 坐标，入库转回 WGS-84
                 final wgs = Gcj.toWgs(ll);
                 if (_boundaryMode) {
-                  setState(() => _bPts.add(wgs));
+                  setState(() {
+                    _bPts.add(wgs);
+                    _fixBuffer.clear();
+                  });
                   return;
                 }
                 // flutter_map v7 多边形无 onTap：用点内检测选中地块
@@ -620,7 +661,10 @@ class MapScreenState extends State<MapScreen> {
               },
               onLongPress: (_, ll) {
                 if (_boundaryMode) {
-                  setState(() => _bPts.add(Gcj.toWgs(ll)));
+                  setState(() {
+                    _bPts.add(Gcj.toWgs(ll));
+                    _fixBuffer.clear();
+                  });
                   return;
                 }
                 _showAddPlaceMenu(Gcj.toWgs(ll));
@@ -869,6 +913,16 @@ class MapScreenState extends State<MapScreen> {
                   ),
                 ),
                 const SizedBox(height: 10),
+                if (_boundaryMode) ...[
+                  _MapFab(
+                    tooltip: '转角定点：站定$_staticDurationS秒取均值',
+                    icon: Icons.center_focus_strong,
+                    onTap: () {
+                      if (!_measuring) _startStaticFix();
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                ],
                 FloatingActionButton.extended(
                   heroTag: 'boundary',
                   onPressed: _toggleBoundary,
@@ -934,10 +988,11 @@ class MapScreenState extends State<MapScreen> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   child: Text(
-                    '绕地块走一圈自动采点（${_bPts.length}点）\n'
-                    'GPS ${accM == null ? "获取中…" : "±${accM.toStringAsFixed(0)}m"}'
-                    '${accM != null && accM > LocationService.maxBoundaryAccuracy ? " · 精度不足，好点才采集" : " · 采集中"}\n'
-                    '也可点击/长按地图手动加点',
+                    _measuring
+                        ? '定点中：${_staticFixes.length}个好点 · 站定别动…'
+                        : '转角：点「◎」站定${_staticDurationS}秒取均值，或直接点击地图\n'
+                            '直线正常走，已自动采 ${_bPts.length} 点'
+                            '${accM == null ? "" : " · GPS ±${accM.toStringAsFixed(0)}m"}',
                     style: const TextStyle(fontSize: 12),
                   ),
                 ),

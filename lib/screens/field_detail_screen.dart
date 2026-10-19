@@ -10,6 +10,7 @@ import '../services/gcj02.dart';
 import '../services/nav.dart';
 import '../services/share_service.dart';
 import '../services/storage.dart';
+import 'boundary_edit_screen.dart';
 import 'photo_viewer_screen.dart';
 
 class FieldDetailScreen extends StatelessWidget {
@@ -171,6 +172,20 @@ class FieldDetailScreen extends StatelessWidget {
                 ),
               ),
             ),
+          const SizedBox(height: 12),
+          // 边界精修
+          OutlinedButton.icon(
+            icon: const Icon(Icons.edit_location_alt),
+            label: const Text('编辑边界（卫星图精修顶点）'),
+            onPressed: parcel.boundary.isEmpty
+                ? null
+                : () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) =>
+                              BoundaryEditScreen(parcel: parcel)),
+                    ),
+          ),
           const SizedBox(height: 12),
           // 操作按钮
           Row(
