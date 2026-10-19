@@ -19,13 +19,17 @@ class LocationService {
     return null;
   }
 
-  /// 高精度定位流（移动 3 米才推一次，省电且适合绕地走）
+  /// 高精度定位流：1Hz 连续输出，由调用方按 accuracy 过滤（适合边界采集）
   static Stream<Position> get stream => Geolocator.getPositionStream(
         locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          distanceFilter: 3,
+          accuracy: LocationAccuracy.bestForNavigation,
+          distanceFilter: 0,
         ),
       );
+
+  /// 定位质量门槛（米，越小越好）：Position.accuracy 是 68% 置信半径
+  static const double maxBoundaryAccuracy = 6.0;
+  static const double maxTrackAccuracy = 10.0;
 
   static LatLng toLatLng(Position p) => LatLng(p.latitude, p.longitude);
 

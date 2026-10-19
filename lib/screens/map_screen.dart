@@ -40,6 +40,11 @@ class MapScreenState extends State<MapScreen> {
   // 地块边界采集
   bool _boundaryMode = false;
   final List<LatLng> _bPts = [];
+  final List<LatLng> _fixBuffer = []; // 最近的好点，边界点取均值消抖
+
+  // 静态阈值见 LocationService；边界点最少移动间距（米）
+  static const double _boundaryMinMove = 2.0;
+  static const double _trackMinMove = 1.0;
 
   // 底图：默认卫星图（对齐地块形状直观），可切街道图
   bool _satellite = true;
@@ -163,10 +168,27 @@ class MapScreenState extends State<MapScreen> {
           _map.move(Gcj.of(LatLng(pos.latitude, pos.longitude)), 17);
         }
         final ll = LocationService.toLatLng(pos);
-        if (_recTrack) setState(() => _livePts.add(ll));
-        if (_boundaryMode && _shouldAcceptBoundaryPoint(ll)) {
-          setState(() => _bPts.add(ll));
+        final acc = pos.accuracy <= 0 ? 99.0 : pos.accuracy;
+        // 轨迹：过滤差分点 + 至少移动 1m
+        if (_recTrack &&
+            acc <= LocationService.maxTrackAccuracy &&
+            (_livePts.isEmpty ||
+                GeoUtils.distance(_livePts.last, ll) >= _trackMinMove)) {
+          _livePts.add(ll);
         }
+        // 边界：只收好点，取最近3点均值
+        if (_boundaryMode) {
+          if (acc <= LocationService.maxBoundaryAccuracy) {
+            _fixBuffer.add(ll);
+            if (_fixBuffer.length > 3) _fixBuffer.removeAt(0);
+            final mean = _meanOf(_fixBuffer);
+            if (_shouldAcceptBoundaryPoint(mean)) {
+              _bPts.add(mean);
+              _fixBuffer.clear();
+            }
+          }
+        }
+        if (mounted) setState(() {});
       },
       onError: (e) {
         if (mounted) setState(() => _locError = '定位失败：$e');
@@ -174,10 +196,21 @@ class MapScreenState extends State<MapScreen> {
     );
   }
 
-  /// 边界采点：与上一点距离 >2m 才收，避免原地堆点
+  /// 边界采点：与上一点距离足够远才收，避免原地堆点
   bool _shouldAcceptBoundaryPoint(LatLng ll) {
     if (_bPts.isEmpty) return true;
-    return GeoUtils.distance(_bPts.last, ll) > 2;
+    return GeoUtils.distance(_bPts.last, ll) > _boundaryMinMove;
+  }
+
+  /// 多个定位解算取算术平均（小范围内等价于消抖）
+  LatLng _meanOf(List<LatLng> pts) {
+    var lat = 0.0;
+    var lng = 0.0;
+    for (final p in pts) {
+      lat += p.latitude;
+      lng += p.longitude;
+    }
+    return LatLng(lat / pts.length, lng / pts.length);
   }
 
   // ---------- 动作 ----------
@@ -534,6 +567,9 @@ class MapScreenState extends State<MapScreen> {
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
     final liveDist = GeoUtils.pathLength(_livePts);
+    final accM = (_me == null || _me!.accuracy <= 0)
+        ? null
+        : _me!.accuracy;
     return Scaffold(
       appBar: AppBar(
         title: Text(_boundaryMode ? '采集地块边界' : '地块管家'),
@@ -633,6 +669,22 @@ class MapScreenState extends State<MapScreen> {
                         borderColor: Colors.orange,
                         borderStrokeWidth: 3,
                       ),
+                  ],
+                ),
+              // GPS 精度圈
+              if (_me != null)
+                CircleLayer(
+                  circles: [
+                    CircleMarker(
+                      point: Gcj.of(LocationService.toLatLng(_me!)),
+                      radius: ((_me!.accuracy <= 0 ? 8.0 : _me!.accuracy)
+                              .clamp(2.0, 60.0))
+                          .toDouble(),
+                      useRadiusInMeter: true,
+                      color: Colors.blue.withValues(alpha: 0.08),
+                      borderColor: Colors.blue.withValues(alpha: 0.35),
+                      borderStrokeWidth: 1,
+                    ),
                   ],
                 ),
               // 点位标注
@@ -854,7 +906,8 @@ class MapScreenState extends State<MapScreen> {
                           const SizedBox(width: 6),
                           Text(
                             '录制中 ${GeoUtils.fmtDist(liveDist)}'
-                            ' · ${_livePts.length}点',
+                            ' · ${_livePts.length}点'
+                            '${accM == null ? "" : " · GPS ±${accM.toStringAsFixed(0)}m"}',
                             style: const TextStyle(
                                 fontWeight: FontWeight.bold, fontSize: 13),
                           ),
@@ -881,7 +934,10 @@ class MapScreenState extends State<MapScreen> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   child: Text(
-                    '绕地块走一圈自动采点（${_bPts.length}点）\n也可点击/长按地图手动加点',
+                    '绕地块走一圈自动采点（${_bPts.length}点）\n'
+                    'GPS ${accM == null ? "获取中…" : "±${accM.toStringAsFixed(0)}m"}'
+                    '${accM != null && accM > LocationService.maxBoundaryAccuracy ? " · 精度不足，好点才采集" : " · 采集中"}\n'
+                    '也可点击/长按地图手动加点',
                     style: const TextStyle(fontSize: 12),
                   ),
                 ),
