@@ -22,7 +22,7 @@ void main() async {
 }
 
 @pragma('vm:entry-point')
-void downloadCallback(String id, DownloadTaskStatus status, int progress) {
+void downloadCallback(String id, int status, int progress) {
   // 进度由系统通知栏展示，这里无需处理
 }
 
