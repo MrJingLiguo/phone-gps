@@ -78,6 +78,20 @@ jobs:
                   '    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>\n    <application',
                   1,
               )
+          # flutter_downloader 后台下载需要 FileProvider 声明（插件自带 provider_paths 资源）
+          if "DownloadedFileProvider" not in s:
+              provider = (
+                  '        <provider\n'
+                  '            android:name="vn.hunghd.flutterdownloader.DownloadedFileProvider"\n'
+                  '            android:authorities="${applicationId}.flutter_downloader.provider"\n'
+                  '            android:exported="false"\n'
+                  '            android:grantUriPermissions="true" >\n'
+                  '            <meta-data\n'
+                  '                android:name="android.support.FILE_PROVIDER_PATHS"\n'
+                  '                android:resource="@xml/provider_paths"/>\n'
+                  '        </provider>\n'
+              )
+              s = s.replace("    </application>", provider + "    </application>", 1)
           s = s.replace('android:label="fieldmap"', 'android:label="地块管家"')
           p.write_text(s, encoding="utf-8")
           print("manifest ok")
