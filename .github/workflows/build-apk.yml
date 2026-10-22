@@ -78,36 +78,6 @@ jobs:
                   '    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>\n    <application',
                   1,
               )
-          # flutter_downloader 后台下载需要 FileProvider 声明（插件自带 provider_paths 资源）
-          if "DownloadedFileProvider" not in s:
-              provider = (
-                  '        <provider\n'
-                  '            android:name="vn.hunghd.flutterdownloader.DownloadedFileProvider"\n'
-                  '            android:authorities="${applicationId}.flutter_downloader.provider"\n'
-                  '            android:exported="false"\n'
-                  '            android:grantUriPermissions="true" >\n'
-                  '            <meta-data\n'
-                  '                android:name="android.support.FILE_PROVIDER_PATHS"\n'
-                  '                android:resource="@xml/provider_paths"/>\n'
-                  '        </provider>\n'
-              )
-              s = s.replace("    </application>", provider + "    </application>", 1)
-          # FileProvider 引用的路径资源（缺失会导致启动即崩：Unable to get provider DownloadedFileProvider）
-          xml_dir = pathlib.Path("android/app/src/main/res/xml")
-          xml_dir.mkdir(parents=True, exist_ok=True)
-          (xml_dir / "provider_paths.xml").write_text(
-              '<?xml version="1.0" encoding="utf-8"?>\n'
-              '<paths xmlns:android="http://schemas.android.com/apk/res/android">\n'
-              '    <external-path name="external_files" path="." />\n'
-              '    <external-files-path name="external_app_files" path="." />\n'
-              '    <external-cache-path name="external_cache" path="." />\n'
-              '    <cache-path name="cache" path="." />\n'
-              '    <files-path name="files" path="." />\n'
-              '</paths>\n',
-              encoding="utf-8",
-          )
-          print("provider_paths.xml ok")
-
           s = s.replace('android:label="fieldmap"', 'android:label="地块管家"')
           p.write_text(s, encoding="utf-8")
           print("manifest ok")

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_downloader/flutter_downloader.dart';
 import 'package:provider/provider.dart';
 import 'app_state.dart';
 import 'focus_bus.dart';
@@ -12,19 +11,7 @@ import 'screens/more_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  // 先出界面：后台下载组件延后初始化，任何失败都不能拦住启动
   runApp(const FieldMapApp());
-  Future.microtask(() async {
-    try {
-      FlutterDownloader.registerCallback(downloadCallback);
-      await FlutterDownloader.initialize(debug: false);
-    } catch (_) {}
-  });
-}
-
-@pragma('vm:entry-point')
-void downloadCallback(String id, int status, int progress) {
-  // 进度由系统通知栏展示，这里无需处理
 }
 
 class FieldMapApp extends StatelessWidget {

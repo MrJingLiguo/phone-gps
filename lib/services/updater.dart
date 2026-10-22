@@ -1,10 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter_downloader/flutter_downloader.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// 应用内自动更新：从 GitHub Releases 检查/多线路下载/唤起安装
 class Updater {
@@ -152,19 +152,14 @@ class Updater {
     }
   }
 
-  /// 后台下载：系统 WorkManager 执行，通知栏显示进度，可切出 app；完成点通知即可安装
-  static Future<void> enqueueBackground(UpdateInfo info) async {
+  /// 后台下载：交给系统浏览器（其下载管理器支持断点/后台/完成通知），
+  /// 浏览器选最快镜像线路，完成后在通知栏点开安装
+  static Future<void> downloadViaBrowser(UpdateInfo info) async {
     final urls = await _rankUrls(info.apkUrl);
-    final dir = await getApplicationDocumentsDirectory();
-    final updates = Directory('${dir.path}/updates');
-    if (!updates.existsSync()) updates.createSync(recursive: true);
-    await FlutterDownloader.enqueue(
-      url: urls.first,
-      savedDir: updates.path,
-      fileName: 'fieldmap_v${info.latest}.apk',
-      showNotification: true,
-      openFileFromNotification: true,
-    );
+    // 优先走非直连镜像（国内浏览器下载更稳），全部失败再用直连
+    final target = urls.length > 1 ? urls[1] : urls.first;
+    await launchUrl(Uri.parse(target),
+        mode: LaunchMode.externalApplication);
   }
 
   /// 唤起系统安装器
@@ -240,19 +235,18 @@ class _UpdateDialogState extends State<_UpdateDialog> {
     }
   }
 
-  Future<void> _startBackground() async {
+  Future<void> _startBrowserDownload() async {
     try {
-      await Updater.enqueueBackground(widget.info);
+      await Updater.downloadViaBrowser(widget.info);
     } catch (_) {
-      // 失败时提示走前台下载
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('后台下载启动失败，请用「下载安装」')));
+            const SnackBar(content: Text('浏览器打开失败，请用「下载安装」')));
       }
       return;
     }
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('已在后台下载（通知栏显示进度），完成后点通知即可安装，可切去其他应用'),
+        content: Text('已交给浏览器下载，完成后在通知栏点开 APK 即可安装'),
         duration: Duration(seconds: 4)));
     if (mounted) Navigator.pop(context);
   }
@@ -299,8 +293,8 @@ class _UpdateDialogState extends State<_UpdateDialog> {
             child: const Text('稍后')),
         OutlinedButton.icon(
           icon: const Icon(Icons.cloud_download, size: 18),
-          label: const Text('后台下载'),
-          onPressed: _downloading ? null : _startBackground,
+          label: const Text('浏览器下载'),
+          onPressed: _downloading ? null : _startBrowserDownload,
         ),
         FilledButton.icon(
           icon: const Icon(Icons.download, size: 18),
