@@ -20,3 +20,6 @@ ios/
 # Misc
 *.log
 .DS_Store
+
+# adb 工具(本机下载, 不进库)
+.tools/
