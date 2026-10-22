@@ -10,15 +10,16 @@ import 'screens/places_screen.dart';
 import 'screens/tracks_screen.dart';
 import 'screens/more_screen.dart';
 
-void main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  try {
-    FlutterDownloader.registerCallback(downloadCallback);
-    await FlutterDownloader.initialize(debug: false);
-  } catch (_) {
-    // 后台下载组件初始化失败不阻塞 app
-  }
+  // 先出界面：后台下载组件延后初始化，任何失败都不能拦住启动
   runApp(const FieldMapApp());
+  Future.microtask(() async {
+    try {
+      FlutterDownloader.registerCallback(downloadCallback);
+      await FlutterDownloader.initialize(debug: false);
+    } catch (_) {}
+  });
 }
 
 @pragma('vm:entry-point')
