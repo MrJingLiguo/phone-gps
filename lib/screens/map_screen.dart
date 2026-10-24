@@ -42,6 +42,7 @@ class MapScreenState extends State<MapScreen> {
   final List<LatLng> _bPts = [];
   final List<LatLng> _fixBuffer = []; // 最近的好点，边界点取均值消抖
   bool _measuring = false; // 转角定点中
+  bool _manualMode = false; // 手动打点模式：关闭自动采点，全部手动落点
   final List<Position> _staticFixes = []; // 定点期间的好点
 
   // 静态阈值见 LocationService；边界点最少移动间距（米）
@@ -179,13 +180,14 @@ class MapScreenState extends State<MapScreen> {
                 GeoUtils.distance(_livePts.last, ll) >= _trackMinMove)) {
           _livePts.add(ll);
         }
-        // 边界：定点测量中只收静态好点；否则自动采点（好点+3点均值+>2m）
+        // 边界：定点测量中只收静态好点；手动模式不自动采点；否则自动采点（好点+3点均值+>2m）
         if (_boundaryMode) {
           if (_measuring) {
             if (acc <= LocationService.maxBoundaryAccuracy) {
               _staticFixes.add(pos);
             }
-          } else if (acc <= LocationService.maxBoundaryAccuracy) {
+          } else if (!_manualMode &&
+              acc <= LocationService.maxBoundaryAccuracy) {
             _fixBuffer.add(ll);
             if (_fixBuffer.length > 3) _fixBuffer.removeAt(0);
             final mean = _meanOf(_fixBuffer);
@@ -915,6 +917,19 @@ class MapScreenState extends State<MapScreen> {
                 const SizedBox(height: 10),
                 if (_boundaryMode) ...[
                   _MapFab(
+                    tooltip: _manualMode
+                        ? '手动打点中（点此切回自动采点）'
+                        : '切到手动打点：关闭自动采点，全靠点击落点',
+                    icon: Icons.touch_app,
+                    active: _manualMode,
+                    activeColor: Colors.deepPurple,
+                    onTap: () => setState(() {
+                      _manualMode = !_manualMode;
+                      _fixBuffer.clear();
+                    }),
+                  ),
+                  const SizedBox(height: 10),
+                  _MapFab(
                     tooltip: '转角定点：站定$_staticDurationS秒取均值',
                     icon: Icons.center_focus_strong,
                     onTap: () {
@@ -990,9 +1005,12 @@ class MapScreenState extends State<MapScreen> {
                   child: Text(
                     _measuring
                         ? '定点中：${_staticFixes.length}个好点 · 站定别动…'
-                        : '转角：点「◎」站定${_staticDurationS}秒取均值，或直接点击地图\n'
-                            '直线正常走，已自动采 ${_bPts.length} 点'
-                            '${accM == null ? "" : " · GPS ±${accM.toStringAsFixed(0)}m"}',
+                        : _manualMode
+                            ? '手动打点：点击/长按地图逐点落边（${_bPts.length}点）\n'
+                                '转角也可用「◎」站定取均值'
+                            : '转角：点「◎」站定${_staticDurationS}秒取均值，或直接点击地图\n'
+                                '直线正常走，已自动采 ${_bPts.length} 点'
+                                '${accM == null ? "" : " · GPS ±${accM.toStringAsFixed(0)}m"}',
                     style: const TextStyle(fontSize: 12),
                   ),
                 ),
@@ -1008,18 +1026,25 @@ class _MapFab extends StatelessWidget {
   final String tooltip;
   final IconData icon;
   final VoidCallback onTap;
+  final bool active;
+  final Color? activeColor;
 
-  const _MapFab(
-      {required this.tooltip, required this.icon, required this.onTap});
+  const _MapFab({
+    required this.tooltip,
+    required this.icon,
+    required this.onTap,
+    this.active = false,
+    this.activeColor,
+  });
 
   @override
   Widget build(BuildContext context) {
     return FloatingActionButton.small(
       heroTag: tooltip,
       tooltip: tooltip,
-      backgroundColor: Colors.white,
+      backgroundColor: active ? (activeColor ?? Colors.green) : Colors.white,
       onPressed: onTap,
-      child: Icon(icon, color: Colors.black87),
+      child: Icon(icon, color: active ? Colors.white : Colors.black87),
     );
   }
 }

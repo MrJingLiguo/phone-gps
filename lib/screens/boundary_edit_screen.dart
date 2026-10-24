@@ -1,12 +1,15 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import '../app_state.dart';
 import '../models/parcel.dart';
 import '../services/geo_utils.dart';
 import '../services/gcj02.dart';
+import '../services/location_service.dart';
 
 enum _EditMode { move, straighten }
 
@@ -27,9 +30,42 @@ class _BoundaryEditScreenState extends State<BoundaryEditScreen> {
   int? _straightA; // 直线矫正：起点顶点
   bool _dirty = false;
   final List<List<LatLng>> _undoStack = [];
+  Position? _me; // 当前定位（靠近地块时显示，便于对照修正）
+  StreamSubscription<Position>? _sub;
 
   static const double _pickRadiusM = 15; // 点选顶点的判定半径（米）
   static const double _spikeM = 8; // 野点判定：偏离邻边弦超 8m
+  static const double _showMeRangeM = 200; // 距地块该范围内显示定位点
+
+  @override
+  void initState() {
+    super.initState();
+    _watchLocation();
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _watchLocation() async {
+    final err = await LocationService.ensureReady();
+    if (err != null) return; // 静默失败：不定位也不影响编辑
+    _sub = LocationService.stream.listen((pos) {
+      if (mounted) setState(() => _me = pos);
+    });
+  }
+
+  /// 距任一顶点 200m 内才显示定位点
+  bool get _meNear {
+    if (_me == null || _pts.isEmpty) return false;
+    final me = LocationService.toLatLng(_me!);
+    for (final p in _pts) {
+      if (GeoUtils.distance(me, p) <= _showMeRangeM) return true;
+    }
+    return false;
+  }
 
   void _pushUndo() {
     _undoStack.add(List.of(_pts));
@@ -293,6 +329,26 @@ class _BoundaryEditScreenState extends State<BoundaryEditScreen> {
                 ),
               MarkerLayer(
                 markers: [
+                  if (_meNear)
+                    Marker(
+                      point: Gcj.of(LocationService.toLatLng(_me!)),
+                      width: 22,
+                      height: 22,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.blue,
+                          shape: BoxShape.circle,
+                          border:
+                              Border.all(color: Colors.white, width: 3),
+                          boxShadow: const [
+                            BoxShadow(
+                                color: Colors.black26,
+                                blurRadius: 4,
+                                spreadRadius: 1),
+                          ],
+                        ),
+                      ),
+                    ),
                   for (int i = 0; i < _pts.length; i++)
                     Marker(
                       point: Gcj.of(_pts[i]),
@@ -387,7 +443,8 @@ class _BoundaryEditScreenState extends State<BoundaryEditScreen> {
                             color: Colors.white, fontSize: 12)),
                     const SizedBox(height: 2),
                     Text(
-                      '${_pts.length}个顶点 · ${GeoUtils.fmtArea(area)}',
+                      '${_pts.length}个顶点 · ${GeoUtils.fmtArea(area)}'
+                      '${_meNear ? " · 蓝点=你当前的位置" : ""}',
                       style: const TextStyle(
                           color: Colors.orange, fontSize: 12),
                     ),
